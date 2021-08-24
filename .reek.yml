@@ -1,0 +1,17 @@
+detectors:
+  IrresponsibleModule:
+    enabled: false # Covered by rubocop
+
+  UncommunicativeParameterName:
+    enabled: false # Covered by rubocop
+
+directories:
+  tests:
+    FeatureEnvy:
+      enabled: false # assert will be called often
+
+    TooManyStatements:
+      enabled: false # Tests might be long
+
+    UtilityFunction:
+      enabled: false # Many tests will classify as that

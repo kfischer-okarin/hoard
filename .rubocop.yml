@@ -1,0 +1,33 @@
+AllCops:
+  NewCops: enable
+
+Layout/LineLength:
+  Max: 120
+
+Metrics/MethodLength:
+  Exclude:
+    - tests/**/*
+
+Style/BlockDelimiters:
+  EnforcedStyle: semantic
+
+Style/Documentation:
+  Exclude:
+    - tests/**/*
+
+Style/GlobalVars:
+  AllowedVariables:
+    - $gtk
+
+# DragonRuby basic
+Style/FrozenStringLiteralComment:
+  Enabled: false
+
+Style/RedundantFileExtensionInRequire:
+  Enabled: false
+
+Layout/ClosingHeredocIndentation: # No support for <<~
+  Enabled: false
+
+Layout/HeredocIndentation: # No support for <<~
+  Enabled: false
