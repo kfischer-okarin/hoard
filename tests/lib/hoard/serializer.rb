@@ -83,15 +83,16 @@ def test_serializer_serialize_entity(args, assert)
 {:entity_id=>#{entity.entity_id}, :entity_name=>:player, :entity_type=>:player, :created_at=>-1, :global_created_at_elapsed=>-1, :entity_strict=>true, :entity_keys_by_ref=>{:entity_type=>:entity_name, :global_created_at_elapsed=>:created_at}, :hp=>12, :max_hp=>13}
 SERIALIZED
 
-  SerializationTest.assert_serialized_value!(
-    assert,
-    entity,
-    expected,
-    compare_by: ->(value) { value.to_hash }
-  )
+  serialized = Hoard::Serializer.serialize entity
+
+  assert.equal! serialized, expected.strip, 'Serialized value was different'
+
+  deserialized = Hoard::Serializer.deserialize serialized
+
+  assert.equal! deserialized.to_hash, entity.to_hash, 'Deserialized value was different'
 end
 
-def test_serializer_serialize_array(args, assert)
+def test_serializer_serialize_array(_args, assert)
   expected = <<-SERIALIZED
 {:type=>:array, :size=>3}
 {:type=>:string}
@@ -109,7 +110,7 @@ SERIALIZED
   )
 end
 
-def test_serializer_serialize_empty_array(args, assert)
+def test_serializer_serialize_empty_array(_args, assert)
   expected = <<-SERIALIZED
 {:type=>:array, :size=>0}
 SERIALIZED
@@ -121,7 +122,7 @@ SERIALIZED
   )
 end
 
-def test_serializer_serialize_hash(args, assert)
+def test_serializer_serialize_hash(_args, assert)
   expected = <<-SERIALIZED
 {:type=>:hash, :size=>3}
 {:type=>:symbol}
@@ -149,15 +150,14 @@ end
 
 module SerializationTest
   class << self
-    def assert_serialized_value!(assert, value, expected, compare_by: nil)
+    def assert_serialized_value!(assert, value, expected)
       serialized = Hoard::Serializer.serialize(value)
 
       assert.equal! serialized, expected.strip, 'Serialized value was different'
 
       deserialized = Hoard::Serializer.deserialize serialized
 
-      transform = compare_by || ->(a) { a }
-      assert.equal! transform.call(deserialized), transform.call(value), 'Deserialized value was different'
+      assert.equal! deserialized, value, 'Deserialized value was different'
     end
   end
 end
