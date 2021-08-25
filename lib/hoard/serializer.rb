@@ -7,154 +7,47 @@ module Hoard
       end
 
       def deserialize(value)
-        Deserialization.new(value).result
+        line_stream = LineStream.new(value)
+        deserialize_next_value line_stream
       end
 
-      def serializer_for(schema)
-        serializer_class(schema[:type]).new(schema)
-      end
-
-      private
-
-      def serializer_class(type)
-        SERIALIZER_CLASSES.fetch(type)
+      def deserialize_next_value(line_stream)
+        type_header = $gtk.deserialize_state line_stream.read_line
+        serializer = Hoard.serializer_for_type_header type_header
+        serializer.deserialize_next_value(line_stream, type_header)
       end
     end
 
-    class Deserialization
-      attr_reader :result
-
+    class LineStream
       def initialize(value)
         @lines = value.split("\n")
         @index = 0
-        @result = read_next_value
       end
 
-      private
-
-      def read_next_value
-        schema = read_schema
-        next_line
-        read_typed_value(current_line, schema)
-      end
-
-      def read_schema
-        $gtk.deserialize_state current_line
-      end
-
-      def current_line
+      def peek_line
         @lines[@index]
+      end
+
+      def read_line
+        peek_line.tap { next_line }
       end
 
       def next_line
         @index += 1
       end
-
-      def read_typed_value(value, schema)
-        case schema[:type]
-        when :array
-          [].tap { |result|
-            schema[:size].times do
-              result << read_next_value
-            end
-          }
-        when :hash
-          {}.tap { |result|
-            schema[:size].times do
-              key = read_next_value
-              result[key] = read_next_value
-            end
-          }
-        else
-          Serializer.serializer_for(schema).deserialize(value).tap {
-            next_line
-          }
-        end
-      end
     end
 
-    class BaseSerializer
-      def initialize(schema)
-        @schema = schema
-      end
-    end
-
-    class IntSerializer < BaseSerializer
-      def deserialize(value)
-        value.to_i
-      end
-    end
-
-    class StringSerializer < BaseSerializer
-      def deserialize(value)
-        value
-      end
-    end
-
-    class SymbolSerializer < BaseSerializer
-      def deserialize(value)
-        value.to_sym
-      end
-    end
-
-    class BooleanSerializer < BaseSerializer
-      def deserialize(value)
-        value == 't'
-      end
-    end
-
-    class TypedArraySerializer < BaseSerializer
-      def deserialize(value)
-        value.split(',').map { |element|
-          element_serializer.deserialize(element)
-        }
-      end
-
-      private
-
-      def element_serializer
-        @element_serializer ||= Serializer.serializer_for(type: @schema[:element_type])
-      end
-    end
-
-    class EntitySerializer < BaseSerializer
-      def deserialize(value)
-        $gtk.deserialize_state value
-      end
-    end
-
-    class ArraySerializer < BaseSerializer
-      def deserialize(_value)
-        raise 'Should never be called'
-      end
-    end
-
-    class HashSerializer < BaseSerializer
-      def deserialize(_value)
-        raise 'Should never be called'
-      end
-    end
-
-    SERIALIZER_CLASSES = {
-      int: IntSerializer,
-      string: StringSerializer,
-      symbol: SymbolSerializer,
-      boolean: BooleanSerializer,
-      typed_array: TypedArraySerializer,
-      entity: EntitySerializer,
-      array: ArraySerializer,
-      hash: HashSerializer
-    }
-
-    class SerializerNew
+    class Serializer
       attr_reader :type
 
-      def initialize(type:, value_condition:, serialize:, simple:, type_parameters:)
+      def initialize(type:, value_condition:, serialize:, deserialize:, type_parameters:, simple:, deserialize_from_lines:)
         @type = type
         @value_condition = value_condition
         @serialize = serialize
-        @simple = simple
+        @deserialize = deserialize
         @type_parameters = type_parameters || ->(_) { {} }
+        @simple = simple
+        @deserialize_from_lines = deserialize_from_lines
       end
 
       def simple?
@@ -176,12 +69,36 @@ module Hoard
         @serialize.call value
       end
 
+      def deserialize_next_value(line_stream, type_header)
+        if @deserialize_from_lines
+          call_with_one_or_two_arguments @deserialize, line_stream, type_header
+        else
+          deserialize line_stream.read_line, type_header
+        end
+      end
+
+      def deserialize(value, type_header)
+        call_with_one_or_two_arguments @deserialize, value, type_header
+      end
+
       def type_header(value)
         { type: @type }.merge!(@type_parameters.call(value))
       end
 
+      def call_with_one_or_two_arguments(method, argument1, argument2)
+        if method.arity == 2
+          method.call argument1, argument2
+        else
+          method.call argument1
+        end
+      end
+
       def inspect
         "Serializer(#{@type})"
+      end
+
+      def to_s
+        inspect
       end
     end
 
@@ -199,22 +116,26 @@ module Hoard
   register_serializer :int,
                       simple: true,
                       value_condition: ->(value) { value.is_a? Integer },
-                      serialize: ->(value) { value.to_s }
+                      serialize: ->(value) { value.to_s },
+                      deserialize: ->(value) { value.to_i }
 
   register_serializer :string,
                       simple: true,
                       value_condition: ->(value) { value.is_a? String },
-                      serialize: ->(value) { value }
+                      serialize: ->(value) { value },
+                      deserialize: ->(value) { value }
 
   register_serializer :symbol,
                       simple: true,
                       value_condition: ->(value) { value.is_a? Symbol },
-                      serialize: ->(value) { value.to_s }
+                      serialize: ->(value) { value.to_s },
+                      deserialize: ->(value) { value.to_sym }
 
   register_serializer :boolean,
                       simple: true,
                       value_condition: ->(value) { [true, false].include? value },
-                      serialize: ->(value) { value ? 't' : 'f' }
+                      serialize: ->(value) { value ? 't' : 'f' },
+                      deserialize: ->(value) { value == 't' }
 
   register_serializer :typed_array,
                       value_condition: lambda { |value|
@@ -230,13 +151,22 @@ module Hoard
                       serialize: lambda { |array|
                         serializer = Hoard.serializer_for_value array[0]
                         array.map { |element| serializer.serialize(element) }.join(',')
+                      },
+                      deserialize: lambda { |value, type_header|
+                        serialized_elements = value.split(',')
+                        element_type_header = { type: type_header[:element_type] }
+                        serializer = Hoard.serializer_for_type_header element_type_header
+                        serialized_elements.map { |element|
+                          serializer.deserialize element, element_type_header
+                        }
                       }
 
   register_serializer :entity,
                       value_condition: lambda { |value|
                         value.is_a?(GTK::StrictEntity) || value.is_a?(GTK::OpenEntity)
                       },
-                      serialize: ->(entity) { $gtk.serialize_state(entity) }
+                      serialize: ->(entity) { $gtk.serialize_state(entity) },
+                      deserialize: ->(value) { $gtk.deserialize_state(value) }
 
   register_serializer :array,
                       value_condition: ->(value) { value.is_a? Array },
@@ -244,6 +174,14 @@ module Hoard
                       serialize: lambda { |array|
                         array.map { |element|
                           Hoard.serializer_for_value(element).serialize_with_header(element)
+                        }
+                      },
+                      deserialize_from_lines: true,
+                      deserialize: lambda { |line_stream, type_header|
+                        [].tap { |result|
+                          type_header[:size].times do
+                            result << Serializer.deserialize_next_value(line_stream)
+                          end
                         }
                       }
 
@@ -256,6 +194,15 @@ module Hoard
                             Hoard.serializer_for_value(key).serialize_with_header(key),
                             Hoard.serializer_for_value(value).serialize_with_header(value)
                           ]
+                        }
+                      },
+                      deserialize_from_lines: true,
+                      deserialize: lambda { |line_stream, type_header|
+                        {}.tap { |result|
+                          type_header[:size].times do
+                            key = Serializer.deserialize_next_value line_stream
+                            result[key] = Serializer.deserialize_next_value line_stream
+                          end
                         }
                       }
 end
