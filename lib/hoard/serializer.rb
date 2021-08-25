@@ -2,49 +2,8 @@ module Hoard
   module Serializer
     class << self
       def serialize(value)
-        schema = determine_schema(value)
-        [
-          $gtk.serialize_state(schema),
-          serializer_for(schema).serialize(value)
-        ].join("\n").strip
-      end
-
-      def determine_schema(value)
-        simple_type = simple_value_type(value)
-        return { type: simple_type } if simple_type
-
-        case value
-        when GTK::StrictEntity, GTK::OpenEntity
-          { type: :entity }
-        when Array
-          simple_array_type = array_type(value)
-          return { type: :typed_array, element_type: simple_array_type } if simple_array_type
-
-          { type: :array, size: value.size }
-        when Hash
-          { type: :hash, size: value.size }
-        end
-      end
-
-      def simple_value_type(value)
-        case value
-        when Integer
-          :int
-        when String
-          :string
-        when Symbol
-          :symbol
-        when true, false
-          :boolean
-        end
-      end
-
-      def array_type(array)
-        first_element_type = simple_value_type array[0]
-        return unless first_element_type
-        return unless array.all? { |value| simple_value_type(value) == first_element_type }
-
-        first_element_type
+        serializer = Hoard.serializer_for_value value
+        serializer.serialize_with_header(value).join("\n").strip
       end
 
       def deserialize(value)
@@ -121,52 +80,30 @@ module Hoard
     end
 
     class IntSerializer < BaseSerializer
-      def serialize(value)
-        value.to_s
-      end
-
       def deserialize(value)
         value.to_i
       end
     end
 
     class StringSerializer < BaseSerializer
-      def serialize(value)
-        value
-      end
-
       def deserialize(value)
         value
       end
     end
 
     class SymbolSerializer < BaseSerializer
-      def serialize(value)
-        value.to_s
-      end
-
       def deserialize(value)
         value.to_sym
       end
     end
 
     class BooleanSerializer < BaseSerializer
-      def serialize(value)
-        value ? 't' : 'f'
-      end
-
       def deserialize(value)
         value == 't'
       end
     end
 
     class TypedArraySerializer < BaseSerializer
-      def serialize(value)
-        value.map { |element|
-          element_serializer.serialize(element)
-        }.join(',')
-      end
-
       def deserialize(value)
         value.split(',').map { |element|
           element_serializer.deserialize(element)
@@ -181,37 +118,18 @@ module Hoard
     end
 
     class EntitySerializer < BaseSerializer
-      def serialize(value)
-        $gtk.serialize_state value
-      end
-
       def deserialize(value)
         $gtk.deserialize_state value
       end
     end
 
     class ArraySerializer < BaseSerializer
-      def serialize(value)
-        value.map { |element|
-          Serializer.serialize(element)
-        }.join("\n")
-      end
-
       def deserialize(_value)
         raise 'Should never be called'
       end
     end
 
     class HashSerializer < BaseSerializer
-      def serialize(value)
-        value.map { |key, element|
-          [
-            Serializer.serialize(key),
-            Serializer.serialize(element)
-          ].join("\n")
-        }.join("\n")
-      end
-
       def deserialize(_value)
         raise 'Should never be called'
       end
@@ -227,6 +145,117 @@ module Hoard
       array: ArraySerializer,
       hash: HashSerializer
     }
-  end
-end
 
+    class SerializerNew
+      attr_reader :type
+
+      def initialize(type:, value_condition:, serialize:, simple:, type_parameters:)
+        @type = type
+        @value_condition = value_condition
+        @serialize = serialize
+        @simple = simple
+        @type_parameters = type_parameters || ->(_) { {} }
+      end
+
+      def simple?
+        @simple
+      end
+
+      def can_serialize?(value)
+        @value_condition.call value
+      end
+
+      def serialize_with_header(value)
+        [
+          $gtk.serialize_state(type_header(value)),
+          @serialize.call(value)
+        ]
+      end
+
+      def serialize(value)
+        @serialize.call value
+      end
+
+      def type_header(value)
+        { type: @type }.merge!(@type_parameters.call(value))
+      end
+
+      def inspect
+        "Serializer(#{@type})"
+      end
+    end
+
+    def self.serializer_for_all_elements(collection)
+      return if collection.empty?
+
+      Hoard.serializers.find { |serializer|
+        next false unless serializer.simple?
+
+        collection.all? { |element| Hoard.serializer_for_value(element) == serializer }
+      }
+    end
+  end
+
+  register_serializer :int,
+                      simple: true,
+                      value_condition: ->(value) { value.is_a? Integer },
+                      serialize: ->(value) { value.to_s }
+
+  register_serializer :string,
+                      simple: true,
+                      value_condition: ->(value) { value.is_a? String },
+                      serialize: ->(value) { value }
+
+  register_serializer :symbol,
+                      simple: true,
+                      value_condition: ->(value) { value.is_a? Symbol },
+                      serialize: ->(value) { value.to_s }
+
+  register_serializer :boolean,
+                      simple: true,
+                      value_condition: ->(value) { [true, false].include? value },
+                      serialize: ->(value) { value ? 't' : 'f' }
+
+  register_serializer :typed_array,
+                      value_condition: lambda { |value|
+                        next false unless value.is_a? Array
+
+                        !Serializer.serializer_for_all_elements(value).nil?
+                      },
+                      type_parameters: lambda { |array|
+                        element_serializer = Serializer.serializer_for_all_elements array
+                        element_type = element_serializer.type
+                        { element_type: element_type }
+                      },
+                      serialize: lambda { |array|
+                        serializer = Hoard.serializer_for_value array[0]
+                        array.map { |element| serializer.serialize(element) }.join(',')
+                      }
+
+  register_serializer :entity,
+                      value_condition: lambda { |value|
+                        value.is_a?(GTK::StrictEntity) || value.is_a?(GTK::OpenEntity)
+                      },
+                      serialize: ->(entity) { $gtk.serialize_state(entity) }
+
+  register_serializer :array,
+                      value_condition: ->(value) { value.is_a? Array },
+                      type_parameters: ->(array) { { size: array.size } },
+                      serialize: lambda { |array|
+                        array.map { |element|
+                          Hoard.serializer_for_value(element).serialize_with_header(element)
+                        }
+                      }
+
+  register_serializer :hash,
+                      value_condition: ->(value) { value.is_a? Hash },
+                      type_parameters: ->(hash) { { size: hash.size } },
+                      serialize: lambda { |hash|
+                        hash.map { |key, value|
+                          [
+                            Hoard.serializer_for_value(key).serialize_with_header(key),
+                            Hoard.serializer_for_value(value).serialize_with_header(value)
+                          ]
+                        }
+                      }
+end
