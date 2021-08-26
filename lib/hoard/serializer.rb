@@ -38,26 +38,18 @@ module Hoard
 
       def deserialize_next_value(line_stream, type_header)
         if @deserialize_from_lines
-          call_with_one_or_two_arguments @deserialize, line_stream, type_header
+          Util.call_according_to_arity @deserialize, line_stream, type_header
         else
           deserialize line_stream.read_line, type_header
         end
       end
 
       def deserialize(value, type_header)
-        call_with_one_or_two_arguments @deserialize, value, type_header
+        Util.call_according_to_arity @deserialize, value, type_header
       end
 
       def type_header(value)
         { type: @type }.merge!(@type_parameters.call(value))
-      end
-
-      def call_with_one_or_two_arguments(method, argument1, argument2)
-        if method.arity == 2
-          method.call argument1, argument2
-        else
-          method.call argument1
-        end
       end
 
       def inspect
