@@ -6,16 +6,8 @@ module Hoard
         @all ||= []
       end
 
-      def register(type, value_condition:, serialize:, deserialize: nil, type_parameters: nil, simple: false, deserialize_from_lines: false)
-        all << Serializer.new(
-          type: type,
-          value_condition: value_condition,
-          serialize: serialize,
-          deserialize: deserialize,
-          type_parameters: type_parameters,
-          simple: simple,
-          deserialize_from_lines: deserialize_from_lines
-        )
+      def register(serializer)
+        all << serializer
       end
 
       def serializer_for_value(value)
