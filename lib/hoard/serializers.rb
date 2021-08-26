@@ -7,7 +7,7 @@ module Hoard
       end
 
       def register(type, value_condition:, serialize:, deserialize: nil, type_parameters: nil, simple: false, deserialize_from_lines: false)
-        all << Serializer::Serializer.new(
+        all << Serializer.new(
           type: type,
           value_condition: value_condition,
           serialize: serialize,
