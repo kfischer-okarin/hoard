@@ -21,6 +21,10 @@ module Hoard
         @value_condition.call value
       end
 
+      def can_serialize_all_elements?(collection)
+        collection.all? { |element| can_serialize?(element) }
+      end
+
       def serialize_with_header(value)
         [
           $gtk.serialize_state(type_header(value)),
@@ -64,16 +68,6 @@ module Hoard
         inspect
       end
     end
-
-    def self.serializer_for_all_elements(collection)
-      return if collection.empty?
-
-      Serializers.all.find { |serializer|
-        next false unless serializer.simple?
-
-        collection.all? { |element| Serializers.serializer_for_value(element) == serializer }
-      }
-    end
   end
 
   Serializers.register :int,
@@ -104,10 +98,10 @@ module Hoard
                        value_condition: lambda { |value|
                          next false unless value.is_a? Array
 
-                         !Serializer.serializer_for_all_elements(value).nil?
+                         !Serializers.serializer_for_all_elements(value).nil?
                        },
                        type_parameters: lambda { |array|
-                         element_serializer = Serializer.serializer_for_all_elements array
+                         element_serializer = Serializers.serializer_for_all_elements array
                          element_type = element_serializer.type
                          { element_type: element_type }
                        },
