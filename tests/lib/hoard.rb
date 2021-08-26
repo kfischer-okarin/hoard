@@ -24,6 +24,19 @@ SERIALIZED
   )
 end
 
+def test_serializer_serialize_string_with_newline(_args, assert)
+  expected = <<-SERIALIZED
+{:type=>:string}
+Long Dialog&newline;Next Line
+SERIALIZED
+
+  SerializationTest.assert_serialized_value!(
+    assert,
+    "Long Dialog\nNext Line",
+    expected
+  )
+end
+
 def test_serializer_serialize_symbol(_args, assert)
   expected = <<-SERIALIZED
 {:type=>:symbol}

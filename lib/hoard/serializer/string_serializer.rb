@@ -12,11 +12,21 @@ module Hoard
         end
 
         def serialize(string)
-          string
+          encode_newlines string
         end
 
         def deserialize(value)
-          value
+          decode_newlines value
+        end
+
+        private
+
+        def encode_newlines(string)
+          string.gsub("\n", '&newline;')
+        end
+
+        def decode_newlines(string)
+          string.gsub('&newline;', "\n")
         end
       end
     end
