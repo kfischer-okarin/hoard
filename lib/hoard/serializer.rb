@@ -1,23 +1,5 @@
 module Hoard
   module Serializer
-    class << self
-      def serialize(value)
-        serializer = Serializers.serializer_for_value value
-        serializer.serialize_with_header(value).join("\n").strip
-      end
-
-      def deserialize(value)
-        line_stream = LineStream.new(value)
-        deserialize_next_value line_stream
-      end
-
-      def deserialize_next_value(line_stream)
-        type_header = $gtk.deserialize_state line_stream.read_line
-        serializer = Serializers.serializer_for_type_header type_header
-        serializer.deserialize_next_value(line_stream, type_header)
-      end
-    end
-
     class Serializer
       attr_reader :type
 
@@ -161,7 +143,7 @@ module Hoard
                        deserialize: lambda { |line_stream, type_header|
                          [].tap { |result|
                            type_header[:size].times do
-                             result << Serializer.deserialize_next_value(line_stream)
+                             result << Hoard.deserialize_next_value(line_stream)
                            end
                          }
                        }
@@ -181,8 +163,8 @@ module Hoard
                        deserialize: lambda { |line_stream, type_header|
                          {}.tap { |result|
                            type_header[:size].times do
-                             key = Serializer.deserialize_next_value line_stream
-                             result[key] = Serializer.deserialize_next_value line_stream
+                             key = Hoard.deserialize_next_value line_stream
+                             result[key] = Hoard.deserialize_next_value line_stream
                            end
                          }
                        }
