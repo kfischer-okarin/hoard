@@ -1,0 +1,14 @@
+[package]
+name = "hoard"
+authors = ["Kevin Fischer <kfischer_okarin@yahoo.co.jp>"]
+version = "1.0.0"
+homepage = "https://github.com/kfischer-okarin/hoard"
+keywords = ["serialization"]
+
+requires = ["lib/hoard.rb"]
+
+[package.installs]
+
+[dragonruby]
+version = "2"
+edition = "standard"
