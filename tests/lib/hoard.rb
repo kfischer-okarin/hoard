@@ -76,6 +76,19 @@ SERIALIZED
   )
 end
 
+def test_serializer_serialize_typed_array_strings_with_comma(_args, assert)
+  expected = <<-SERIALIZED
+{:type=>:typed_array, :element_type=>:string}
+a&comma;b,c,d
+SERIALIZED
+
+  SerializationTest.assert_serialized_value!(
+    assert,
+    ['a,b', 'c', 'd'],
+    expected
+  )
+end
+
 def test_serializer_serialize_entity(args, assert)
   entity = args.state.new_entity_strict(:player, hp: 21, max_hp: 22)
   expected = <<-SERIALIZED

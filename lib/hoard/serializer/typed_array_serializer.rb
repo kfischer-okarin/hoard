@@ -30,7 +30,9 @@ module Hoard
 
         def serialize(array)
           serializer = Serializers.serializer_for_value array[0]
-          array.map { |element| serializer.serialize(element) }.join(',')
+          array.map { |element|
+            encode_commas serializer.serialize(element)
+          }.join(',')
         end
 
         def deserialize(value, type_header)
@@ -40,7 +42,7 @@ module Hoard
           serialized_elements.map { |element|
             Util.call_according_to_arity(
               serializer.method(:deserialize),
-              element,
+              decode_commas(element),
               element_type_header
             )
           }
@@ -58,6 +60,14 @@ module Hoard
 
         def element_serializer?(serializer)
           element_serializers.include? serializer
+        end
+
+        def encode_commas(string)
+          string.gsub(',', '&comma;')
+        end
+
+        def decode_commas(string)
+          string.gsub('&comma;', ',')
         end
       end
     end
