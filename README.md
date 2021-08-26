@@ -54,7 +54,15 @@ serialized_data = $gtk.read_file 'saves/001.sav'
 save_game_data = Hoard.deserialize serialized_data
 ```
 
-**Caution**
+### Supported Data Types
+- Integers
+- Strings
+- Symbols
+- Boolean values
+- Arrays for serializable values
+- Hashes with serializable keys/values
+
+### Caution
 
 Entities created by `args.state.new_entity` or `args.state.new_entity_strict` are serialized/deserialized as a whole.
 So if a single entity is very big it could still mean that your data cannot be properly deserialized (DragonRuby will
