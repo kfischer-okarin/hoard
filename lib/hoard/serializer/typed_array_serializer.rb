@@ -10,12 +10,12 @@ module Hoard
         def can_serialize?(value)
           return false unless value.is_a? Array
 
-          serializer = Serializers.serializer_for_all_elements value
+          serializer = serializer_for_all_elements value
           serializer != nil
         end
 
         def type_parameters(array)
-          element_serializer = Serializers.serializer_for_all_elements array
+          element_serializer = serializer_for_all_elements array
           element_type = element_serializer.type
           { element_type: element_type }
         end
@@ -35,6 +35,16 @@ module Hoard
               element,
               element_type_header
             )
+          }
+        end
+
+        private
+
+        def serializer_for_all_elements(collection)
+          return if collection.empty?
+
+          Serializers.all.find { |serializer|
+            serializer.simple? && serializer.can_serialize_all_elements?(collection)
           }
         end
       end
