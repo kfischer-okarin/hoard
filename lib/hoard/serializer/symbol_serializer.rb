@@ -7,10 +7,6 @@ module Hoard
           :symbol
         end
 
-        def simple?
-          true
-        end
-
         def can_serialize?(value)
           value.is_a? Symbol
         end

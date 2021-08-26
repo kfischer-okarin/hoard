@@ -7,10 +7,6 @@ module Hoard
           :boolean
         end
 
-        def simple?
-          true
-        end
-
         def can_serialize?(value)
           [true, false].include? value
         end

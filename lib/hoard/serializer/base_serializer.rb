@@ -3,10 +3,6 @@ module Hoard
     # Base class for serializers
     class BaseSerializer
       class << self
-        def simple?
-          false
-        end
-
         def can_serialize_all_elements?(collection)
           collection.all? { |element| can_serialize?(element) }
         end
