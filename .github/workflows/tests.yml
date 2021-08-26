@@ -1,0 +1,31 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  run_tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        version:
+          - '2.17'
+          - 'current'
+          - 'current-pro'
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download dragonruby
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ap-northeast-1
+          DRAGONRUBY_VERSION: ${{ matrix.version }}
+        run: |
+          aws s3 cp s3://kf-dragonruby/font.ttf .
+          aws s3 cp s3://kf-dragonruby/$DRAGONRUBY_VERSION/dragonruby .
+          chmod u+x ./dragonruby
+      - name: Run tests
+        run: xvfb-run ./dragonruby app --test tests/main.rb
