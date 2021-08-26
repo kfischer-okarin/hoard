@@ -2,7 +2,7 @@ module Hoard
   module Serializer
     class << self
       def serialize(value)
-        serializer = Hoard.serializer_for_value value
+        serializer = Serializers.serializer_for_value value
         serializer.serialize_with_header(value).join("\n").strip
       end
 
@@ -13,7 +13,7 @@ module Hoard
 
       def deserialize_next_value(line_stream)
         type_header = $gtk.deserialize_state line_stream.read_line
-        serializer = Hoard.serializer_for_type_header type_header
+        serializer = Serializers.serializer_for_type_header type_header
         serializer.deserialize_next_value(line_stream, type_header)
       end
     end
@@ -86,104 +86,104 @@ module Hoard
     def self.serializer_for_all_elements(collection)
       return if collection.empty?
 
-      Hoard.serializers.find { |serializer|
+      Serializers.all.find { |serializer|
         next false unless serializer.simple?
 
-        collection.all? { |element| Hoard.serializer_for_value(element) == serializer }
+        collection.all? { |element| Serializers.serializer_for_value(element) == serializer }
       }
     end
   end
 
-  register_serializer :int,
-                      simple: true,
-                      value_condition: ->(value) { value.is_a? Integer },
-                      serialize: ->(value) { value.to_s },
-                      deserialize: ->(value) { value.to_i }
+  Serializers.register :int,
+                       simple: true,
+                       value_condition: ->(value) { value.is_a? Integer },
+                       serialize: ->(value) { value.to_s },
+                       deserialize: ->(value) { value.to_i }
 
-  register_serializer :string,
-                      simple: true,
-                      value_condition: ->(value) { value.is_a? String },
-                      serialize: ->(value) { value },
-                      deserialize: ->(value) { value }
+  Serializers.register :string,
+                       simple: true,
+                       value_condition: ->(value) { value.is_a? String },
+                       serialize: ->(value) { value },
+                       deserialize: ->(value) { value }
 
-  register_serializer :symbol,
-                      simple: true,
-                      value_condition: ->(value) { value.is_a? Symbol },
-                      serialize: ->(value) { value.to_s },
-                      deserialize: ->(value) { value.to_sym }
+  Serializers.register :symbol,
+                       simple: true,
+                       value_condition: ->(value) { value.is_a? Symbol },
+                       serialize: ->(value) { value.to_s },
+                       deserialize: ->(value) { value.to_sym }
 
-  register_serializer :boolean,
-                      simple: true,
-                      value_condition: ->(value) { [true, false].include? value },
-                      serialize: ->(value) { value ? 't' : 'f' },
-                      deserialize: ->(value) { value == 't' }
+  Serializers.register :boolean,
+                       simple: true,
+                       value_condition: ->(value) { [true, false].include? value },
+                       serialize: ->(value) { value ? 't' : 'f' },
+                       deserialize: ->(value) { value == 't' }
 
-  register_serializer :typed_array,
-                      value_condition: lambda { |value|
-                        next false unless value.is_a? Array
+  Serializers.register :typed_array,
+                       value_condition: lambda { |value|
+                         next false unless value.is_a? Array
 
-                        !Serializer.serializer_for_all_elements(value).nil?
-                      },
-                      type_parameters: lambda { |array|
-                        element_serializer = Serializer.serializer_for_all_elements array
-                        element_type = element_serializer.type
-                        { element_type: element_type }
-                      },
-                      serialize: lambda { |array|
-                        serializer = Hoard.serializer_for_value array[0]
-                        array.map { |element| serializer.serialize(element) }.join(',')
-                      },
-                      deserialize: lambda { |value, type_header|
-                        serialized_elements = value.split(',')
-                        element_type_header = { type: type_header[:element_type] }
-                        serializer = Hoard.serializer_for_type_header element_type_header
-                        serialized_elements.map { |element|
-                          serializer.deserialize element, element_type_header
-                        }
-                      }
+                         !Serializer.serializer_for_all_elements(value).nil?
+                       },
+                       type_parameters: lambda { |array|
+                         element_serializer = Serializer.serializer_for_all_elements array
+                         element_type = element_serializer.type
+                         { element_type: element_type }
+                       },
+                       serialize: lambda { |array|
+                         serializer = Serializers.serializer_for_value array[0]
+                         array.map { |element| serializer.serialize(element) }.join(',')
+                       },
+                       deserialize: lambda { |value, type_header|
+                         serialized_elements = value.split(',')
+                         element_type_header = { type: type_header[:element_type] }
+                         serializer = Serializers.serializer_for_type_header element_type_header
+                         serialized_elements.map { |element|
+                           serializer.deserialize element, element_type_header
+                         }
+                       }
 
-  register_serializer :entity,
-                      value_condition: lambda { |value|
-                        value.is_a?(GTK::StrictEntity) || value.is_a?(GTK::OpenEntity)
-                      },
-                      serialize: ->(entity) { $gtk.serialize_state(entity) },
-                      deserialize: ->(value) { $gtk.deserialize_state(value) }
+  Serializers.register :entity,
+                       value_condition: lambda { |value|
+                         value.is_a?(GTK::StrictEntity) || value.is_a?(GTK::OpenEntity)
+                       },
+                       serialize: ->(entity) { $gtk.serialize_state(entity) },
+                       deserialize: ->(value) { $gtk.deserialize_state(value) }
 
-  register_serializer :array,
-                      value_condition: ->(value) { value.is_a? Array },
-                      type_parameters: ->(array) { { size: array.size } },
-                      serialize: lambda { |array|
-                        array.map { |element|
-                          Hoard.serializer_for_value(element).serialize_with_header(element)
-                        }
-                      },
-                      deserialize_from_lines: true,
-                      deserialize: lambda { |line_stream, type_header|
-                        [].tap { |result|
-                          type_header[:size].times do
-                            result << Serializer.deserialize_next_value(line_stream)
-                          end
-                        }
-                      }
+  Serializers.register :array,
+                       value_condition: ->(value) { value.is_a? Array },
+                       type_parameters: ->(array) { { size: array.size } },
+                       serialize: lambda { |array|
+                         array.map { |element|
+                           Serializers.serializer_for_value(element).serialize_with_header(element)
+                         }
+                       },
+                       deserialize_from_lines: true,
+                       deserialize: lambda { |line_stream, type_header|
+                         [].tap { |result|
+                           type_header[:size].times do
+                             result << Serializer.deserialize_next_value(line_stream)
+                           end
+                         }
+                       }
 
-  register_serializer :hash,
-                      value_condition: ->(value) { value.is_a? Hash },
-                      type_parameters: ->(hash) { { size: hash.size } },
-                      serialize: lambda { |hash|
-                        hash.map { |key, value|
-                          [
-                            Hoard.serializer_for_value(key).serialize_with_header(key),
-                            Hoard.serializer_for_value(value).serialize_with_header(value)
-                          ]
-                        }
-                      },
-                      deserialize_from_lines: true,
-                      deserialize: lambda { |line_stream, type_header|
-                        {}.tap { |result|
-                          type_header[:size].times do
-                            key = Serializer.deserialize_next_value line_stream
-                            result[key] = Serializer.deserialize_next_value line_stream
-                          end
-                        }
-                      }
+  Serializers.register :hash,
+                       value_condition: ->(value) { value.is_a? Hash },
+                       type_parameters: ->(hash) { { size: hash.size } },
+                       serialize: lambda { |hash|
+                         hash.map { |key, value|
+                           [
+                             Serializers.serializer_for_value(key).serialize_with_header(key),
+                             Serializers.serializer_for_value(value).serialize_with_header(value)
+                           ]
+                         }
+                       },
+                       deserialize_from_lines: true,
+                       deserialize: lambda { |line_stream, type_header|
+                         {}.tap { |result|
+                           type_header[:size].times do
+                             key = Serializer.deserialize_next_value line_stream
+                             result[key] = Serializer.deserialize_next_value line_stream
+                           end
+                         }
+                       }
 end
