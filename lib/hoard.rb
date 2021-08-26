@@ -2,6 +2,7 @@ require 'lib/hoard/util.rb'
 require 'lib/hoard/line_stream.rb'
 require 'lib/hoard/serializers.rb'
 require 'lib/hoard/serializer.rb'
+require 'lib/hoard/default_serializers.rb'
 
 module Hoard
   class << self
