@@ -82,7 +82,7 @@ class MySerializer < Hoard::Serializer::BaseSerializer
     end
 
     def deserialize(serialized_value)
-      # Return the serialized string
+      # Return the deserialized data
     end
   end
 end
