@@ -1,0 +1,24 @@
+[package]
+name = "hoard"
+authors = ["Kevin Fischer <kfischer_okarin@yahoo.co.jp>"]
+version = "0.1.0"
+homepage = "TODO: Package Website"
+keywords = ["persistence", "serialization", "assets", "save"]
+
+# Optional:
+# documentation = "https://example.com"
+# repository = "http://github.com/example/example"
+
+# Which files do you want to be automatically required from your package.
+requires = ["lib/hoard.rb"]
+
+
+[package.installs]
+# Example
+#
+# <from> = <to>
+# "lib/library.rb" = "app/lib/library.rb"
+
+[dragonruby]
+version = "2.7"
+edition = "standard"

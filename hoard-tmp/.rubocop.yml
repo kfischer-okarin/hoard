@@ -1,0 +1,25 @@
+AllCops:
+  NewCops: enable
+
+Layout/LineLength:
+  Max: 120
+
+Style/FrozenStringLiteralComment:
+  Enabled: false
+
+Style/GlobalVars:
+  Enabled: false
+
+Style/RedundantFileExtensionInRequire:
+  Enabled: false
+
+Metrics/MethodLength:
+  Exclude:
+    - /tests/**/*
+
+Metrics/AbcSize:
+  Exclude:
+    - /tests/**/*
+
+Style/BlockDelimiters:
+  EnforcedStyle: semantic
